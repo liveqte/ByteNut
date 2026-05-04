@@ -23,7 +23,7 @@ PROXY = os.getenv("PROXY") or None
 TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
 BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")  # 主 Token（yl-token）
-
+ACCOUNTS = os.getenv("BYTENUT", "")
 # Token 缓存文件路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_FILE = os.path.join(BASE_DIR, "artifacts", "token_cache.json")
