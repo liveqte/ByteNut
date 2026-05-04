@@ -340,9 +340,11 @@ jobs:
       - name: 运行续期脚本
         env:
           BYTENUT: ${{ secrets.BYTENUT }}
+          BYTENUT_TOKEN : ${{ secrets.BYTENUT_TOKEN }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           PROXY: ${{ steps.proxy.outputs.proxy_server }}
+          
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
           xvfb-run -a python3 main.py
