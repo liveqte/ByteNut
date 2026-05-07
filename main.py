@@ -22,12 +22,8 @@ from seleniumbase import SB
 PROXY = os.getenv("PROXY") or None
 TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
-BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")  # 主 Token（yl-token）
 ACCOUNTS = os.getenv("BYTENUT", "")
-# Token 缓存文件路径
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COOKIE_FILE = os.path.join(BASE_DIR, "artifacts", "token_cache.json")
-STORAGE_KEY = "yl-token"
+BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")
 
 URL_LOGIN_PANEL = "https://www.bytenut.com/auth/login"
 URL_HOMEPAGE = "https://www.bytenut.com/homepage"
@@ -40,111 +36,15 @@ EXTEND_BTN = "button.extend-btn"
 
 
 def parse_accounts(raw: str):
-    """兼容旧格式：如果传入的是 token，直接返回单账号"""
-    raw = raw.strip()
-    if not raw:
-        return []
-    # 如果包含 ----- 则是旧格式账号密码
-    if '-----' in raw:
-        accounts = []
-        for line in raw.split('\n'):
-            line = line.strip()
-            if not line or '-----' not in line:
-                continue
-            parts = line.split('-----', 1)
-            if len(parts) == 2:
-                accounts.append((parts[0].strip(), parts[1].strip()))
-        return accounts
-    else:
-        # 纯 token 模式
-        return [("__token__", raw)]
-
-
-# ========== Token 缓存管理 ==========
-def load_token_from_storage():
-    """从本地文件加载缓存的 token"""
-    try:
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                token = data.get(STORAGE_KEY)
-                if token and len(token) > 10:
-                    print(f"   📦 已加载缓存 Token: {token[:10]}...")
-                    return token
-    except Exception as e:
-        print(f"   ⚠️ 加载缓存 Token 失败: {e}")
-    return None
-
-
-def save_token_to_storage(token: str):
-    """保存 token 到本地文件"""
-    try:
-        os.makedirs(os.path.dirname(COOKIE_FILE), exist_ok=True)
-        with open(COOKIE_FILE, "w", encoding="utf-8") as f:
-            json.dump({STORAGE_KEY: token}, f, indent=2)
-        print(f"   💾 Token 已缓存到: {COOKIE_FILE}")
-        return True
-    except Exception as e:
-        print(f"   ❌ 保存 Token 失败: {e}")
-        return False
-
-
-def inject_token_to_localstorage(sb, token: str):
-    """
-    将 yl-token 注入到 localStorage
-    """
-    try:
-        # 先访问域名，确保页面已加载
-        sb.open(URL_LOGIN_PANEL)
-        sb.wait_for_element_present("body", timeout=15)
-        time.sleep(2)
-        
-        # 使用 JS 注入 token 到 localStorage
-        script = f"""
-        localStorage.setItem('{STORAGE_KEY}', '{token}');
-        console.log('yl-token injected');
-        """
-        sb.execute_script(script)
-        print(f"   ✅ 已注入 {STORAGE_KEY} 到 localStorage")
-        
-        # 刷新页面使登录生效
-        sb.driver.refresh()
-        time.sleep(3)
-        return True
-    except Exception as e:
-        print(f"   ❌ 注入 token 失败：{str(e)[:50]}")
-        return False
-
-
-def check_login_status(sb):
-    """
-    检查当前是否已登录
-    失败条件：URL 匹配登录地址 OR 页面出现 "Sign In" 文字
-    """
-    try:
-        # 获取当前 URL 并规范化
-        current_url = sb.get_current_url().strip().lower()
-        login_url_target = "https://www.bytenut.com/auth/login"
-
-        # 1. 检查 URL 是否在登录页
-        if login_url_target in current_url:
-            print(f"   🚫 登录校验失败：当前处于登录页面")
-            return False
-
-        # 2. 检查页面中是否能检测到 "Sign In" 文字
-        if sb.is_text_visible("Sign In"):
-            print("   🚫 登录校验失败：页面检测到 'Sign In' 文字")
-            return False
-        
-        # 3. 可选：检查是否有用户相关元素（增强校验）
-        # 例如检查是否有用户头像、用户名等登录后的特征元素
-        
-        print("   ✅ 登录状态确认：未发现登录拦截特征")
-        return True
-
-    except Exception as e:
-        print(f"   ⚠️ 检查登录状态时发生异常: {str(e)[:50]}")
-        return False
+    accounts = []
+    for line in raw.strip().split('\n'):
+        line = line.strip()
+        if not line or '-----' not in line:
+            continue
+        parts = line.split('-----', 1)
+        if len(parts) == 2:
+            accounts.append((parts[0].strip(), parts[1].strip()))
+    return accounts
 
 
 class BytenutRenewal:
@@ -157,8 +57,6 @@ class BytenutRenewal:
     def mask_account(self, u):
         if not u: return "Unknown"
         u = u.strip()
-        if u == "__token__":
-            return "Token:" + (u[-8:] if len(u) > 8 else u)
         if "@" in u:
             local, domain = u.split("@", 1)
             local = local[:2] + "*" * (len(local) - 2) if len(local) > 2 else local[0] + "*"
@@ -394,12 +292,21 @@ class BytenutRenewal:
 
     # ---------- 处理广告验证弹窗 ----------
     def handle_ad_verification(self, sb):
+<<<<<<< HEAD
 
         start = time.time()
         while time.time() - start < 15:
             if sb.execute_script("return !!document.querySelector('div.adsterra-rewarded-dialog');"):
                 break
 
+=======
+        """处理 adsterra-rewarded-dialog 弹窗，完成 Watch Ad → 广告页 → Claim Reward"""
+        try:
+            # 等待弹窗出现
+            if not sb.execute_script("return !!document.querySelector('div.adsterra-rewarded-dialog');"):
+                return True
+            self.log("🛡️ 处理广告验证...")
+>>>>>>> 6b31ded (Update main.py)
             time.sleep(1)
         else:
             self.log("未检测到广告验证弹窗，可能已直接完成")
@@ -409,6 +316,7 @@ class BytenutRenewal:
         try:
             # 点击 Watch Ad
 
+            # 点击 Watch Ad
             sb.execute_script("""
                 var btn = document.querySelector('div.adsterra-rewarded-dialog button.el-button--primary');
                 if(btn) btn.click();
@@ -417,13 +325,13 @@ class BytenutRenewal:
 
             # 处理广告窗口
 
+
             original_window = sb.driver.current_window_handle
             if len(sb.driver.window_handles) > 1:
                 for handle in sb.driver.window_handles:
                     if handle != original_window:
                         sb.driver.switch_to.window(handle)
                         break
-
                 # 检查是否被扩展拦截（可能没有实际页面，但仍尝试等待）
 
                 try:
@@ -450,6 +358,7 @@ class BytenutRenewal:
                     break
                 time.sleep(1)
 
+            # 点击 Claim Reward
             sb.execute_script("""
                 var btn = document.querySelector('div.adsterra-rewarded-dialog button.el-button--success');
                 if(btn) btn.click();
@@ -484,6 +393,7 @@ class BytenutRenewal:
 
         self.handle_ad_verification(sb)
 
+        # 验证结果
         time.sleep(5)
         for _ in range(6):
             new_ext = self.get_extension_data(sb, server_id)
@@ -532,77 +442,126 @@ class BytenutRenewal:
                     return True
             time.sleep(interval)
         return False
+        """兼容旧格式：如果传入的是 token，直接返回单账号"""
+    raw = raw.strip()
+    if not raw:
+        return []
+    # 如果包含 ----- 则是旧格式账号密码
+    if '-----' in raw:
+        accounts = []
+        for line in raw.split('\n'):
+            line = line.strip()
+            if not line or '-----' not in line:
+                continue
+            parts = line.split('-----', 1)
+            if len(parts) == 2:
+                accounts.append((parts[0].strip(), parts[1].strip()))
+        return accounts
+    else:
+        # 纯 token 模式
+        return [("__token__", raw)]
 
-    # ========== Token 登录核心流程 ==========
-    def token_login(self, sb, token: str) -> bool:
-        """使用 Token 注入方式登录"""
-        print(f"\n🚀 步骤 1: 尝试使用 Token 登录...")
-        
-        # 1. 尝试加载缓存
-        cached_token = load_token_from_storage()
-        token_to_use = cached_token if cached_token else token
-        
-        if not token_to_use or len(token_to_use) < 10:
-            print("   ❌ 无效的 Token，请检查 BYTENUT_TOKEN 环境变量")
-            return False
-        
-        # 2. 注入 token 到 localStorage
-        if not inject_token_to_localstorage(sb, token_to_use):
-            return False
-        
-        # 3. 检查登录状态
-        if check_login_status(sb):
-            print("   ✅ Token 登录成功!")
-            # 如果是新 token，保存缓存
-            if not cached_token and token_to_use == token:
-                save_token_to_storage(token)
-            return True
-        else:
-            print("   ⚠️ Token 可能已过期，尝试重新注入...")
-            inject_token_to_localstorage(sb, token)
-            time.sleep(2)
-            if check_login_status(sb):
-                print("   ✅ 重新注入后登录成功!")
-                save_token_to_storage(token)
-                return True
-            print("   ❌ Token 登录失败，请重新获取有效 Token")
-            return False
 
+# ========== Token 缓存管理 ==========
+def load_token_from_storage():
+    """从本地文件加载缓存的 token"""
+    try:
+        if os.path.exists(COOKIE_FILE):
+            with open(COOKIE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                token = data.get(STORAGE_KEY)
+                if token and len(token) > 10:
+                    print(f"   📦 已加载缓存 Token: {token[:10]}...")
+                    return token
+    except Exception as e:
+        print(f"   ⚠️ 加载缓存 Token 失败: {e}")
+    return None
+
+
+def save_token_to_storage(token: str):
+    """保存 token 到本地文件"""
+    try:
+        os.makedirs(os.path.dirname(COOKIE_FILE), exist_ok=True)
+        with open(COOKIE_FILE, "w", encoding="utf-8") as f:
+            json.dump({STORAGE_KEY: token}, f, indent=2)
+        print(f"   💾 Token 已缓存到: {COOKIE_FILE}")
+        return True
+    except Exception as e:
+        print(f"   ❌ 保存 Token 失败: {e}")
+        return False
+
+
+def inject_token_to_localstorage(sb, token: str):
+    """
+    将 yl-token 注入到 localStorage
+    """
+    try:
+        # 先访问域名，确保页面已加载
+        sb.wait_for_element_present("body", timeout=15)
+        time.sleep(2)
+        
+        # 使用 JS 注入 token 到 localStorage
+        script = f"""
+        localStorage.setItem('{STORAGE_KEY}', '{token}');
+        console.log('yl-token injected');
+        """
+        sb.execute_script(script)
+        print(f"   ✅ 已注入 {STORAGE_KEY} 到 localStorage")
+        
+        # 刷新页面使登录生效
+        sb.driver.refresh()
+        time.sleep(3)
+        return True
+    except Exception as e:
+        print(f"   ❌ 注入 token 失败：{str(e)[:50]}")
+        return False
+        
     def run(self):
-        self.log("🚀 开始执行 ByteNut 续期与开机 (Token 模式)")
-        
-        # 解析账号/配置
+        self.log("🚀 开始执行 ByteNut 续期与开机")
         accounts = parse_accounts(ACCOUNTS)
-        token = BYTENUT_TOKEN.strip()
-        
-        if not accounts and not token:
-            self.log("❌ 无账号且未设置 BYTENUT_TOKEN 环境变量")
+        if not accounts:
+            self.log("❌ 无账号")
             return
 
-        # 优先使用 Token 模式（单账号）
-        if token:
-            self.log(f"==== 使用 Token 模式: {self.mask_account('__token__')} ====")
+        for idx, (user, pwd) in enumerate(accounts, 1):
+            masked_user = self.mask_account(user)
+            self.log(f"==== 账号 [{idx}] {masked_user} ====")
+
             with SB(
                 uc=True, test=True, headed=True,
                 chromium_arg="--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--window-size=1280,753",
                 proxy=PROXY
             ) as sb:
                 try:
-                    # Token 登录
-                    if not self.token_login(sb, token):
-                        self.send_tg("❌", "Token 登录失败", "Token", "未知", "未知", 
-                                   "请检查 BYTENUT_TOKEN 是否有效",
-                                   screenshot=self.shot(sb, "token_login_fail.png"))
-                        return
+                    # 登录
                     
+                    sb.uc_open_with_reconnect(URL_LOGIN_PANEL, reconnect_time=5)
+                    inject_token_to_localstorage(sb,BYTENUT_TOKEN)
+                    #sb.wait_for_element_visible('input[placeholder="Username"]', timeout=25)
+                    #sb.type('input[placeholder="Username"]', user)
+                    #sb.type('input[placeholder="Password"]', pwd)
+                    #sb.click('//button[contains(., "Sign In")]')
+                    
+                    time.sleep(5)
+                    if "/auth/login" in sb.get_current_url():
+                        err = ""
+                        try:
+                            err = sb.find_element('div.el-form-item__error').text
+                        except:
+                            pass
+                        self.send_tg("❌", "登录失败", user, "未知", "未知", "",
+                                     self.shot(sb, f"login_fail_{idx}.png"))
+                        continue
+                    self.log("✅ 登录成功")
+
                     sb.uc_open_with_reconnect(URL_HOMEPAGE, reconnect_time=6)
                     time.sleep(5)
 
                     servers = self.get_servers_data(sb)
                     if not servers:
-                        self.send_tg("⚠️", "警告", "Token", "未知", "未知", "API 请求失败",
-                                     screenshot=self.shot(sb, "no_server.png"))
-                        return
+                        self.send_tg("⚠️", "警告", user, "未知", "未知", "API 请求失败",
+                                     self.shot(sb, f"no_server_{idx}.png"))
+                        continue
 
                     server = servers[0]
                     server_id = server.get("id") or ""
@@ -613,15 +572,15 @@ class BytenutRenewal:
                     self.log(f"服务器 {self.mask_server_id(server_id)}: 状态 {state}, 到期 {expiry_str}")
 
                     if not server_id:
-                        self.send_tg("❌", "失败", "Token", "未知", state, expiry_str,
-                                     "服务器ID无效", screenshot=self.shot(sb, "invalid_id.png"))
-                        return
+                        self.send_tg("❌", "失败", user, "未知", state, expiry_str,
+                                     "服务器ID无效", self.shot(sb, f"invalid_id_{idx}.png"))
+                        continue
 
                     ext_info = self.get_extension_data(sb, server_id)
                     if not ext_info:
-                        self.send_tg("❌", "失败", "Token", server_id, state, expiry_str,
-                                     screenshot=self.shot(sb, "ext_info_fail.png"))
-                        return
+                        self.send_tg("❌", "失败", user, server_id, state, expiry_str,
+                                     self.shot(sb, f"ext_info_fail_{idx}.png"))
+                        continue
 
                     can_extend = ext_info.get("canExtend", False)
                     cooldown_min = ext_info.get("minutesUntilNextExtension", 0)
@@ -641,52 +600,55 @@ class BytenutRenewal:
                             result, new_time = self.try_extend_and_verify(sb, server_id, expired_time)
                             if result is True:
                                 if not self.wait_until_not_expired(sb, server_id):
-                                    self.send_tg("⚠️", "续期成功但状态未更新", "Token", server_id,
-                                                 "offline", expiry_str, "无法开机，请稍后重试",
-                                                 screenshot=self.shot(sb, "start_fail.png"))
-                                    return
+                                    self.send_tg("⚠️", "续期成功但状态未更新", user, server_id,
+                                                 "offline", expiry_str,
+                                                 "无法开机，请稍后重试",
+                                                 screenshot=self.shot(sb, f"start_fail_{idx}.png"))
+                                    continue
 
                                 if self.api_start_server(sb, server_id):
                                     is_running, final_state = self.wait_until_running(sb, server_id)
                                     if is_running:
-                                        self.send_tg("✅", "续期并开机成功", "Token", server_id,
-                                                     "offline -> running", f"{expiry_str} -> {new_time}",
-                                                     screenshot=self.shot(sb, "ok.png"))
+                                        self.send_tg("✅", "续期并开机成功", user, server_id,
+                                                     "offline -> running",
+                                                     f"{expiry_str} -> {new_time}",
+                                                     screenshot=self.shot(sb, f"ok_{idx}.png"))
                                     else:
-                                        self.send_tg("⚠️", "续期成功，开机未确认", "Token", server_id,
-                                                     f"offline -> {final_state}", new_time,
-                                                     screenshot=self.shot(sb, "start_timeout.png"))
+                                        self.send_tg("⚠️", "续期成功，开机未确认", user, server_id,
+                                                     f"offline -> {final_state}",
+                                                     new_time,
+                                                     screenshot=self.shot(sb, f"start_timeout_{idx}.png"))
                                 else:
-                                    self.send_tg("✅", "续期成功，开机失败", "Token", server_id,
+                                    self.send_tg("✅", "续期成功，开机失败", user, server_id,
                                                  "offline", new_time,
-                                                 screenshot=self.shot(sb, "start_fail.png"))
+                                                 screenshot=self.shot(sb, f"start_fail_{idx}.png"))
                             elif result == "cooldown":
-                                self.send_tg("⏳", "续期后进入冷却", "Token", server_id, "offline", expiry_str,
-                                             screenshot=self.shot(sb, "cooldown.png"))
+                                self.send_tg("⏳", "续期后进入冷却", user, server_id, "offline", expiry_str,
+                                             screenshot=self.shot(sb, f"cooldown_{idx}.png"))
                             else:
-                                self.send_tg("❌", "续期失败", "Token", server_id, "offline", expiry_str,
-                                             screenshot=self.shot(sb, "extend_fail.png"))
+                                self.send_tg("❌", "续期失败", user, server_id, "offline", expiry_str,
+                                             screenshot=self.shot(sb, f"extend_fail_{idx}.png"))
                         else:
                             if expired:
                                 extra = "服务器已过期且处于冷却期，无法续期和开机"
-                                self.send_tg("🚫", "无法操作", "Token", server_id, state, expiry_str, extra,
-                                             screenshot=self.shot(sb, "expired_cooldown.png"))
+                                self.send_tg("🚫", "无法操作", user, server_id, state, expiry_str, extra,
+                                             screenshot=self.shot(sb, f"expired_cooldown_{idx}.png"))
                             else:
                                 self.log("🔴 离线，冷却中，直接开机")
                                 if self.api_start_server(sb, server_id):
                                     is_running, final_state = self.wait_until_running(sb, server_id)
                                     if is_running:
-                                        self.send_tg("✅", "冷却中并开机成功", "Token", server_id,
+                                        self.send_tg("✅", "冷却中并开机成功", user, server_id,
                                                      "offline -> running", expiry_str,
-                                                     screenshot=self.shot(sb, "started.png"))
+                                                     screenshot=self.shot(sb, f"started_{idx}.png"))
                                     else:
-                                        self.send_tg("⚠️", "开机请求已发送，未确认运行", "Token", server_id,
+                                        self.send_tg("⚠️", "开机请求已发送，未确认运行", user, server_id,
                                                      f"offline -> {final_state}", expiry_str,
-                                                     screenshot=self.shot(sb, "start_timeout.png"))
+                                                     screenshot=self.shot(sb, f"start_timeout_{idx}.png"))
                                 else:
-                                    self.send_tg("❌", "开机请求失败", "Token", server_id, "offline", expiry_str,
-                                                 screenshot=self.shot(sb, "start_fail.png"))
-                        return
+                                    self.send_tg("❌", "开机请求失败", user, server_id, "offline", expiry_str,
+                                                 screenshot=self.shot(sb, f"start_fail_{idx}.png"))
+                        continue
 
                     # ========== 运行中处理 ==========
                     if not can_extend:
@@ -694,9 +656,9 @@ class BytenutRenewal:
                         if expired:
                             extra = "服务器已过期，但当前处于冷却期，续期被暂时禁止"
                         self.log(f"⏳ 冷却中 ({cooldown_min}分钟)")
-                        self.send_tg("⏳", "冷却中", "Token", server_id, state, expiry_str, extra,
-                                     screenshot=self.shot(sb, "cooldown.png"))
-                        return
+                        self.send_tg("⏳", "冷却中", user, server_id, state, expiry_str, extra,
+                                     screenshot=self.shot(sb, f"cooldown_{idx}.png"))
+                        continue
 
                     self.log("✅ 可续期，执行续期")
                     sb.uc_open_with_reconnect(f"https://www.bytenut.com/free-gamepanel/{server_id}", reconnect_time=6)
@@ -705,58 +667,15 @@ class BytenutRenewal:
                     time.sleep(3)
                     result, new_time = self.try_extend_and_verify(sb, server_id, expired_time)
                     if result is True:
-                        self.send_tg("✅", "续期成功", "Token", server_id, state,
+                        self.send_tg("✅", "续期成功", user, server_id, state,
                                      f"{expiry_str} -> {new_time}",
-                                     screenshot=self.shot(sb, "ok.png"))
+                                     screenshot=self.shot(sb, f"ok_{idx}.png"))
                     elif result == "cooldown":
-                        self.send_tg("⏳", "续期后进入冷却", "Token", server_id, state, expiry_str,
-                                     screenshot=self.shot(sb, "cooldown.png"))
+                        self.send_tg("⏳", "续期后进入冷却", user, server_id, state, expiry_str,
+                                     screenshot=self.shot(sb, f"cooldown_{idx}.png"))
                     else:
-                        self.send_tg("❌", "续期失败", "Token", server_id, state, expiry_str,
-                                     screenshot=self.shot(sb, "extend_fail.png"))
-
-                except Exception as e:
-                    self.log(f"❌ 异常: {e}")
-                    try:
-                        self.send_tg("❌", "异常", "Token", "未知", "未知", str(e),
-                                     screenshot=self.shot(sb, "error.png"))
-                    except:
-                        self.send_tg("❌", "异常", "Token", "未知", "未知", str(e))
-            return
-
-        # ========== 旧版账号密码模式（兼容）==========
-        for idx, (user, pwd) in enumerate(accounts, 1):
-            if user == "__token__":
-                continue  # 已在上文处理
-            masked_user = self.mask_account(user)
-            self.log(f"==== 账号 [{idx}] {masked_user} ==== (账号密码模式)")
-
-            with SB(
-                uc=True, test=True, headed=True,
-                chromium_arg="--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--window-size=1280,753",
-                proxy=PROXY
-            ) as sb:
-                try:
-                    # 原账号密码登录逻辑（保留兼容）
-                    sb.uc_open_with_reconnect(URL_LOGIN_PANEL, reconnect_time=5)
-                    sb.wait_for_element_visible('input[placeholder="Username"]', timeout=25)
-                    sb.type('input[placeholder="Username"]', user)
-                    sb.type('input[placeholder="Password"]', pwd)
-                    sb.click('//button[contains(., "Sign In")]')
-                    time.sleep(5)
-                    if "/auth/login" in sb.get_current_url():
-                        err = ""
-                        try:
-                            err = sb.find_element('div.el-form-item__error').text
-                        except:
-                            pass
-                        self.send_tg("❌", "登录失败", user, "未知", "未知", "",
-                                     screenshot=self.shot(sb, f"login_fail_{idx}.png"))
-                        continue
-                    self.log("✅ 登录成功")
-
-                    # ... 后续服务器处理逻辑与 Token 模式相同，此处省略重复代码 ...
-                    # 实际使用时可将服务器处理逻辑提取为独立方法避免重复
+                        self.send_tg("❌", "续期失败", user, server_id, state, expiry_str,
+                                     screenshot=self.shot(sb, f"extend_fail_{idx}.png"))
 
                 except Exception as e:
                     self.log(f"❌ 异常: {e}")
