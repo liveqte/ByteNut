@@ -23,6 +23,7 @@ PROXY = os.getenv("PROXY") or None
 TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
 ACCOUNTS = os.getenv("BYTENUT", "")
+BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")
 
 URL_LOGIN_PANEL = "https://www.bytenut.com/auth/login"
 URL_HOMEPAGE = "https://www.bytenut.com/homepage"
