@@ -23,7 +23,6 @@ PROXY = os.getenv("PROXY") or None
 TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
 ACCOUNTS = os.getenv("BYTENUT", "")
-BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")
 
 URL_LOGIN_PANEL = "https://www.bytenut.com/auth/login"
 URL_HOMEPAGE = "https://www.bytenut.com/homepage"
@@ -45,7 +44,31 @@ def parse_accounts(raw: str):
         if len(parts) == 2:
             accounts.append((parts[0].strip(), parts[1].strip()))
     return accounts
-
+    
+def inject_token_to_localstorage(sb, token: str):
+    """
+    将 yl-token 注入到 localStorage
+    """
+    try:
+        # 先访问域名，确保页面已加载
+        sb.wait_for_element_present("body", timeout=15)
+        time.sleep(2)
+        
+        # 使用 JS 注入 token 到 localStorage
+        script = f"""
+        localStorage.setItem('{STORAGE_KEY}', '{token}');
+        console.log('yl-token injected');
+        """
+        sb.execute_script(script)
+        print(f"   ✅ 已注入 {STORAGE_KEY} 到 localStorage")
+        
+        # 刷新页面使登录生效
+        sb.driver.refresh()
+        time.sleep(3)
+        return True
+    except Exception as e:
+        print(f"   ❌ 注入 token 失败：{str(e)[:50]}")
+        return False
 
 class BytenutRenewal:
 
@@ -442,80 +465,7 @@ class BytenutRenewal:
                     return True
             time.sleep(interval)
         return False
-        """兼容旧格式：如果传入的是 token，直接返回单账号"""
-    raw = raw.strip()
-    if not raw:
-        return []
-    # 如果包含 ----- 则是旧格式账号密码
-    if '-----' in raw:
-        accounts = []
-        for line in raw.split('\n'):
-            line = line.strip()
-            if not line or '-----' not in line:
-                continue
-            parts = line.split('-----', 1)
-            if len(parts) == 2:
-                accounts.append((parts[0].strip(), parts[1].strip()))
-        return accounts
-    else:
-        # 纯 token 模式
-        return [("__token__", raw)]
 
-
-# ========== Token 缓存管理 ==========
-def load_token_from_storage():
-    """从本地文件加载缓存的 token"""
-    try:
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                token = data.get(STORAGE_KEY)
-                if token and len(token) > 10:
-                    print(f"   📦 已加载缓存 Token: {token[:10]}...")
-                    return token
-    except Exception as e:
-        print(f"   ⚠️ 加载缓存 Token 失败: {e}")
-    return None
-
-
-def save_token_to_storage(token: str):
-    """保存 token 到本地文件"""
-    try:
-        os.makedirs(os.path.dirname(COOKIE_FILE), exist_ok=True)
-        with open(COOKIE_FILE, "w", encoding="utf-8") as f:
-            json.dump({STORAGE_KEY: token}, f, indent=2)
-        print(f"   💾 Token 已缓存到: {COOKIE_FILE}")
-        return True
-    except Exception as e:
-        print(f"   ❌ 保存 Token 失败: {e}")
-        return False
-
-
-def inject_token_to_localstorage(sb, token: str):
-    """
-    将 yl-token 注入到 localStorage
-    """
-    try:
-        # 先访问域名，确保页面已加载
-        sb.wait_for_element_present("body", timeout=15)
-        time.sleep(2)
-        
-        # 使用 JS 注入 token 到 localStorage
-        script = f"""
-        localStorage.setItem('{STORAGE_KEY}', '{token}');
-        console.log('yl-token injected');
-        """
-        sb.execute_script(script)
-        print(f"   ✅ 已注入 {STORAGE_KEY} 到 localStorage")
-        
-        # 刷新页面使登录生效
-        sb.driver.refresh()
-        time.sleep(3)
-        return True
-    except Exception as e:
-        print(f"   ❌ 注入 token 失败：{str(e)[:50]}")
-        return False
-        
     def run(self):
         self.log("🚀 开始执行 ByteNut 续期与开机")
         accounts = parse_accounts(ACCOUNTS)
@@ -534,14 +484,12 @@ def inject_token_to_localstorage(sb, token: str):
             ) as sb:
                 try:
                     # 登录
-                    
                     sb.uc_open_with_reconnect(URL_LOGIN_PANEL, reconnect_time=5)
+                    # sb.wait_for_element_visible('input[placeholder="Username"]', timeout=25)
+                    # sb.type('input[placeholder="Username"]', user)
+                    # sb.type('input[placeholder="Password"]', pwd)
+                    # sb.click('//button[contains(., "Sign In")]')
                     inject_token_to_localstorage(sb,BYTENUT_TOKEN)
-                    #sb.wait_for_element_visible('input[placeholder="Username"]', timeout=25)
-                    #sb.type('input[placeholder="Username"]', user)
-                    #sb.type('input[placeholder="Password"]', pwd)
-                    #sb.click('//button[contains(., "Sign In")]')
-                    
                     time.sleep(5)
                     if "/auth/login" in sb.get_current_url():
                         err = ""
