@@ -50,6 +50,7 @@ def inject_token_to_localstorage(sb, token: str):
     """
     将 yl-token 注入到 localStorage
     """
+    STORAGE_KEY = "yl-token"
     try:
         # 先访问域名，确保页面已加载
         sb.wait_for_element_present("body", timeout=15)
