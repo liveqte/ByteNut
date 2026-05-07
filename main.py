@@ -472,7 +472,7 @@ class BytenutRenewal:
         # if not accounts:
         #     self.log("❌ 无账号")
         #     return
-        accounts="user1-----MyP@ssw0rd"
+        accounts=parse_accounts("user1-----MyP@ssw0rd")
         for idx, (user, pwd) in enumerate(accounts, 1):
             masked_user = self.mask_account(user)
             self.log(f"==== 账号 [{idx}] {masked_user} ====")
