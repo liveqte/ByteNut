@@ -194,8 +194,10 @@ class BytenutRenewal:
                     // 2. 隐藏其他广告遮挡元素
                     var selectors = [
                         'ins.adsbygoogle', 'iframe[id^="aswift"]', 'div[id^="google_ads"]',
-                        'div[class*="ad-"]:not([class*="adsterra-rewarded"])', 'div[class*="ads-"]',
-                        'div[id*="ad-"]:not([id*="adsterra"])', 'div[id*="ads-"]',
+                        'div[class*="ad-"]:not([class*="adsterra-rewarded"]):not([class*="extend-reward-dialog"])',
+                        'div[class*="ads-"]',
+                        'div[id*="ad-"]:not([id*="adsterra"]):not([id*="extend-reward"])',
+                        'div[id*="ads-"]',
                         '.ad-container', '.ads-wrapper', '.fixed-bottom-banner',
                         '.ezoic-floating-bottom', '.fc-ab-root'
                     ];
@@ -206,7 +208,8 @@ class BytenutRenewal:
                                 el.innerHTML.indexOf('extend-btn') !== -1 ||
                                 el.innerHTML.indexOf('adsterra-rewarded') !== -1 ||
                                 el.innerHTML.indexOf('Claim Reward') !== -1 ||
-                                el.innerHTML.indexOf('Watch Ad') !== -1) {
+                                el.innerHTML.indexOf('Watch Ad') !== -1 ||
+                                el.innerHTML.indexOf('reward-option') !== -1) {
                                 return;
                             }
                             el.style.display = 'none';
@@ -268,11 +271,30 @@ class BytenutRenewal:
         self.log("⚠️ Turnstile 超时")
         return False
 
-    # ---------- 处理广告验证弹窗 ----------
-    def handle_ad_verification(self, sb):
-        """处理广告验证弹窗，成功返回 True"""
+    # ---------- 处理扩展奖励选择弹窗 ----------
+    def handle_reward_picker(self, sb):
+        """如果弹出 extend-reward-dialog，点击其中的 Watch Ad 按钮"""
         try:
-            # 检测弹窗
+            if not sb.execute_script("return !!document.querySelector('.extend-reward-dialog');"):
+                return True
+
+            self.log("🛡️ 处理扩展奖励选择...")
+            # 优先通过类名点击 Watch Ad 选项
+            sb.execute_script("""
+                var btn = document.querySelector('button.reward-option--watch');
+                if (btn) btn.click();
+            """)
+            time.sleep(2)
+            return True
+        except Exception as e:
+            self.log(f"奖励选择处理异常: {e}")
+            return True
+
+    # ---------- 处理广告验证弹窗（原有流程） ----------
+    def handle_ad_verification(self, sb):
+        """处理 adsterra-rewarded-dialog 弹窗，完成 Watch Ad → 广告页 → Claim Reward"""
+        try:
+            # 等待弹窗出现
             if not sb.execute_script("return !!document.querySelector('div.adsterra-rewarded-dialog');"):
                 return True
             self.log("🛡️ 处理广告验证...")
@@ -292,10 +314,21 @@ class BytenutRenewal:
                     if handle != original_window:
                         sb.driver.switch_to.window(handle)
                         break
-                time.sleep(12)  # 广告要求停留10秒，稍加缓冲
-                sb.driver.close()
+                # 检查是否被扩展拦截（可能没有实际页面，但仍尝试等待）
+                try:
+                    time.sleep(12)
+                except:
+                    pass
+                # 如果窗口仍然存在，则关闭它
+                if len(sb.driver.window_handles) > 1:
+                    try:
+                        sb.driver.close()
+                    except:
+                        pass
                 sb.driver.switch_to.window(original_window)
                 time.sleep(2)
+            else:
+                self.log("未检测到广告窗口，继续...")
 
             # 点击 Claim Reward
             sb.execute_script("""
@@ -307,7 +340,7 @@ class BytenutRenewal:
             return True
         except Exception as e:
             self.log(f"广告验证异常: {e}")
-            return True  # 让流程继续
+            return True
 
     # ---------- 续期点击与验证 ----------
     def try_extend_and_verify(self, sb, server_id, old_expiry):
@@ -327,6 +360,11 @@ class BytenutRenewal:
             return False, ""
 
         time.sleep(2)
+
+        # 处理可能出现的奖励选择弹窗（新）
+        self.handle_reward_picker(sb)
+
+        # 处理原有的广告验证弹窗
         self.handle_ad_verification(sb)
 
         # 验证结果
