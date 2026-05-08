@@ -317,21 +317,14 @@ class BytenutRenewal:
 
     # ---------- 处理广告验证弹窗 ----------
     def handle_ad_verification(self, sb):
-<<<<<<< HEAD
+
 
         start = time.time()
         while time.time() - start < 15:
             if sb.execute_script("return !!document.querySelector('div.adsterra-rewarded-dialog');"):
                 break
 
-=======
-        """处理 adsterra-rewarded-dialog 弹窗，完成 Watch Ad → 广告页 → Claim Reward"""
-        try:
-            # 等待弹窗出现
-            if not sb.execute_script("return !!document.querySelector('div.adsterra-rewarded-dialog');"):
-                return True
-            self.log("🛡️ 处理广告验证...")
->>>>>>> 6b31ded (Update main.py)
+
             time.sleep(1)
         else:
             self.log("未检测到广告验证弹窗，可能已直接完成")
