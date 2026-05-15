@@ -492,6 +492,7 @@ class BytenutRenewal:
                             err = sb.find_element('div.el-form-item__error').text
                         except:
                             pass
+                        self.log("❌", "登录失败", user）
                         self.send_tg("❌", "登录失败", user, "未知", "未知", "",
                                      self.shot(sb, f"login_fail_{idx}.png"))
                         continue
