@@ -26,6 +26,7 @@ ACCOUNTS = os.getenv("BYTENUT", "")
 BYTENUT_TOKEN = os.getenv("BYTENUT_TOKEN", "")
 
 URL_LOGIN_PANEL = "https://www.bytenut.com/auth/login"
+URL_MAIN="https://www.bytenut.com"
 URL_HOMEPAGE = "https://www.bytenut.com/homepage"
 API_SERVER_LIST = "https://www.bytenut.com/game-panel/api/gpPanelServer/user/servers"
 API_EXTENSION_INFO = "https://www.bytenut.com/game-panel/api/gp-free-server/extension-info/{}"
@@ -479,7 +480,7 @@ class BytenutRenewal:
             ) as sb:
                 try:
                     # 登录
-                    sb.uc_open_with_reconnect(URL_LOGIN_PANEL, reconnect_time=5)
+                    sb.uc_open_with_reconnect(URL_MAIN, reconnect_time=5)
                     # sb.wait_for_element_visible('input[placeholder="Username"]', timeout=25)
                     # sb.type('input[placeholder="Username"]', user)
                     # sb.type('input[placeholder="Password"]', pwd)
@@ -492,7 +493,7 @@ class BytenutRenewal:
                             err = sb.find_element('div.el-form-item__error').text
                         except:
                             pass
-                        self.log(f"❌登录失败{user}"）
+                        self.log(f"❌登录失败{user}")
                         self.send_tg("❌", "登录失败", user, "未知", "未知", "",
                                      self.shot(sb, f"login_fail_{idx}.png"))
                         continue
