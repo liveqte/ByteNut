@@ -28,14 +28,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install seleniumbase requests
           seleniumbase install chromedriver
-
+          
+      - name: Launch sing-box if VLINK set
+        env:
+          VLINK: ${{ secrets.VLINK }}
+        if: ${{ env.VLINK != '' }}
+        run: |
+            curl -LO https://amd64.ssss.nyc.mn/sb
+            curl -LO https://raw.githubusercontent.com/liveqte/jupyter-notebook-deployed/refs/heads/main/vlink_to_sb.py
+            chmod +x sb
+            python vlink_to_sb.py $VLINK > v.json
+            nohup ./sb run -c v.json > /dev/null 2>&1 &
+            sleep 3
+            
       - name: 运行续期脚本
         env:
           BYTENUT: ${{ secrets.BYTENUT }}
           BYTENUT_TOKEN : ${{ secrets.BYTENUT_TOKEN }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          
+          PROXY:  http://127.0.0.1:1080
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
           xvfb-run -a python3 main.py
