@@ -34,10 +34,11 @@ API_START_STATUS = "https://www.bytenut.com/game-panel/api/serverStartQueue/stat
 
 RENEW_MENU = '//li[contains(., "RENEW SERVER")]'
 EXTEND_BTN = "button.extend-btn"
-START_BTN = "button.start-btn"
+START_BTN = "button.ss-action--start"
 START_VERIFY_DIALOG = "div.el-dialog"
 MANAGEMENT_MENU = '//li[contains(@class,"el-sub-menu")]//span[text()="Management"]'
 CONSOLE_MENU_ITEM = '//li[contains(@class,"el-menu-item")]//span[text()="Console"]'
+START_MENU_ITEM='//li[contains(@class,"el-menu-item")]//span[contains(., "Start / Stop")]'
 PAGE_READY_INDICATOR = '//li[contains(@class,"el-menu-item")]'
 
 
@@ -612,28 +613,28 @@ class BytenutRenewal:
                 self.log(f"Management 展开失败: {e}")
                 return False, "management_fail"
 
-        # Step 2: 点击 Console
-        self.log("🖥️ 点击 Console...")
+        # Step 2: 点击 
+        self.log("🖥️ 点击 START/STOP...")
         try:
-            sb.click(CONSOLE_MENU_ITEM)
+            sb.click(START_MENU_ITEM)
             time.sleep(3)
         except Exception:
             try:
                 sb.execute_script("""
                     document.querySelectorAll('.el-menu-item span')
                     .forEach(function(el){
-                        if (el.textContent.trim() === 'Console')
+                        if (el.textContent.trim() === 'Start / Stop')
                             el.closest('.el-menu-item').click();
                     });
                 """)
                 time.sleep(3)
             except Exception as e:
-                self.log(f"Console 点击失败: {e}")
+                self.log(f"Start / Stop 点击失败: {e}")
 
         # Step 3: 等待 Start 按钮
         try:
             sb.wait_for_element_present(START_BTN, timeout=15)
-            self.log("✅ Console 页面就绪")
+            self.log("✅ Start / Stop  页面就绪")
         except Exception as e:
             self.log(f"⚠️ 等待 Start 超时: {e}")
             self.shot(sb, f"no_start_btn_{idx}.png")
@@ -657,68 +658,68 @@ class BytenutRenewal:
             self.log(f"Start 点击失败: {e}")
             return False, "start_click_fail"
 
-        # Step 5: 等待验证弹窗（最多 10s）
-        self.log("⏳ 等待验证弹窗...")
-        dialog_appeared = False
-        for _ in range(10):
-            try:
-                if sb.is_element_visible(START_VERIFY_DIALOG):
-                    dialog_appeared = True
-                    break
-            except Exception:
-                pass
-            data = self.get_start_status(sb, server_id)
-            if data and not data.get("inQueue") and data.get("canStart"):
-                self.log("✅ 无弹窗，直接开机成功")
-                return True, "running"
-            time.sleep(1)
+        # # Step 5: 等待验证弹窗（最多 10s）
+        # self.log("⏳ 等待验证弹窗...")
+        # dialog_appeared = False
+        # for _ in range(10):
+        #     try:
+        #         if sb.is_element_visible(START_VERIFY_DIALOG):
+        #             dialog_appeared = True
+        #             break
+        #     except Exception:
+        #         pass
+        #     data = self.get_start_status(sb, server_id)
+        #     if data and not data.get("inQueue") and data.get("canStart"):
+        #         self.log("✅ 无弹窗，直接开机成功")
+        #         return True, "running"
+        #     time.sleep(1)
 
-        if not dialog_appeared:
-            self.log("⚠️ 弹窗未出现，轮询状态...")
-            ok, state = self.poll_start_status(sb, server_id, timeout=60)
-            return (True, state) if ok else (False, "dialog_not_appeared")
+        # if not dialog_appeared:
+        #     self.log("⚠️ 弹窗未出现，轮询状态...")
+        #     ok, state = self.poll_start_status(sb, server_id, timeout=60)
+        #     return (True, state) if ok else (False, "dialog_not_appeared")
 
-        self.log("✅ 验证弹窗出现")
+        # self.log("✅ 验证弹窗出现")
 
-        # Step 6: 等待 Turnstile
-        self._wait_dialog_turnstile(sb, timeout=30)
+        # # Step 6: 等待 Turnstile
+        # self._wait_dialog_turnstile(sb, timeout=30)
 
-        # Step 7: 点击 Continue（最多 60s）
-        self.log("▶️ 等待并点击 Continue...")
-        continue_clicked = False
-        for attempt in range(30):
-            if sb.execute_script(
-                    "return !document.querySelector('div.el-dialog');"):
-                self.log("✅ 弹窗已自动消失")
-                continue_clicked = True
-                break
-            if sb.execute_script("""
-                var btn = document.querySelector(
-                    'div.el-dialog__footer button.el-button--primary');
-                return btn && !btn.disabled
-                    && !btn.classList.contains('is-disabled');
-            """):
-                sb.execute_script("""
-                    document.querySelector(
-                        'div.el-dialog__footer button.el-button--primary'
-                    ).click();
-                """)
-                self.log(f"  Continue 已点击 (attempt {attempt + 1})")
-                continue_clicked = True
-                break
-            if attempt % 5 == 0:
-                self.log(f"  等待 Continue 启用... ({attempt + 1}/30)")
-            time.sleep(2)
+        # # Step 7: 点击 Continue（最多 60s）
+        # self.log("▶️ 等待并点击 Continue...")
+        # continue_clicked = False
+        # for attempt in range(30):
+        #     if sb.execute_script(
+        #             "return !document.querySelector('div.el-dialog');"):
+        #         self.log("✅ 弹窗已自动消失")
+        #         continue_clicked = True
+        #         break
+        #     if sb.execute_script("""
+        #         var btn = document.querySelector(
+        #             'div.el-dialog__footer button.el-button--primary');
+        #         return btn && !btn.disabled
+        #             && !btn.classList.contains('is-disabled');
+        #     """):
+        #         sb.execute_script("""
+        #             document.querySelector(
+        #                 'div.el-dialog__footer button.el-button--primary'
+        #             ).click();
+        #         """)
+        #         self.log(f"  Continue 已点击 (attempt {attempt + 1})")
+        #         continue_clicked = True
+        #         break
+        #     if attempt % 5 == 0:
+        #         self.log(f"  等待 Continue 启用... ({attempt + 1}/30)")
+        #     time.sleep(2)
 
-        if not continue_clicked:
-            self.log("❌ Continue 未启用")
-            self.shot(sb, f"continue_fail_{idx}.png")
-            return False, "continue_fail"
+        # if not continue_clicked:
+        #     self.log("❌ Continue 未启用")
+        #     self.shot(sb, f"continue_fail_{idx}.png")
+        #     return False, "continue_fail"
 
-        time.sleep(3)
+        # time.sleep(3)
 
-        # Step 8: 处理排队弹窗
-        self._handle_queue_dialog(sb)
+        # # Step 8: 处理排队弹窗
+        # self._handle_queue_dialog(sb)
 
         # Step 9: 轮询开机状态
         self.log("⏳ 轮询开机状态...")
