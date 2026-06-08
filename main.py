@@ -33,7 +33,7 @@ API_EXTENSION_INFO = "https://www.bytenut.com/game-panel/api/gp-free-server/exte
 API_START_STATUS = "https://www.bytenut.com/game-panel/api/serverStartQueue/status/{}"
 
 RENEW_MENU = '//li[contains(., "RENEW SERVER")]'
-EXTEND_BTN = "button.extend-btn"
+EXTEND_BTN = "button[class*='extend-btn']" 
 START_BTN = "button.ss-action--start"
 START_VERIFY_DIALOG = "div.el-dialog"
 MANAGEMENT_MENU = '//li[contains(@class,"el-sub-menu")]//span[text()="Management"]'
@@ -561,11 +561,9 @@ class BytenutRenewal:
         self.remove_overlay_ads(sb)
         self.log("⏳ 点击续期按钮...")
         try:
-            # if sb.is_element_visible(EXTEND_BTN):
-            sb.execute_script("arguments[0].click();",sb.find_element(EXTEND_BTN))
-            # else:
-            #     self.log("⚠️ 续期按钮不可见")
-            #     return False, ""
+            # js_click 会自动等待元素存在于 DOM，并直接用 JS 点击，无视是否可见
+            sb.js_click(EXTEND_BTN, timeout=10)
+            self.log("✅ 续期按钮点击成功")
         except Exception as e:
             self.log(f"续期按钮点击失败: {e}")
             return False, ""
