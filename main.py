@@ -563,9 +563,9 @@ class BytenutRenewal:
         try:
             # if sb.is_element_visible(EXTEND_BTN):
             sb.execute_script("arguments[0].click();",sb.find_element(EXTEND_BTN))
-            else:
-                self.log("⚠️ 续期按钮不可见")
-                return False, ""
+            # else:
+            #     self.log("⚠️ 续期按钮不可见")
+            #     return False, ""
         except Exception as e:
             self.log(f"续期按钮点击失败: {e}")
             return False, ""
