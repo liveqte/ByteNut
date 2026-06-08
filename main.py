@@ -33,7 +33,8 @@ API_EXTENSION_INFO = "https://www.bytenut.com/game-panel/api/gp-free-server/exte
 API_START_STATUS = "https://www.bytenut.com/game-panel/api/serverStartQueue/status/{}"
 
 RENEW_MENU = '//li[contains(., "RENEW SERVER")]'
-EXTEND_BTN = "button[class*='extend-btn']" 
+EXTEND_BTN1 = "button[class*='extend-btn']" 
+EXTEND_BTN = "button.extend-btn"
 START_BTN = "button.ss-action--start"
 START_VERIFY_DIALOG = "div.el-dialog"
 MANAGEMENT_MENU = '//li[contains(@class,"el-sub-menu")]//span[text()="Management"]'
@@ -237,14 +238,17 @@ class BytenutRenewal:
         return None
 
     def get_servers_data(self, sb):
+        print("get_servers_data")
         return self.fetch_api(sb, API_SERVER_LIST, referer=URL_HOMEPAGE)
 
     def get_extension_data(self, sb, server_id):
         ref = f"https://www.bytenut.com/free-gamepanel/{server_id}"
+        print("get_extension_data")
         return self.fetch_api(sb, API_EXTENSION_INFO.format(server_id),
                               referer=ref)
 
     def get_start_status(self, sb, server_id):
+        print("get_start_status")
         ref = f"https://www.bytenut.com/free-gamepanel/{server_id}"
         return self.fetch_api(sb, API_START_STATUS.format(server_id),
                               referer=ref)
@@ -286,6 +290,46 @@ class BytenutRenewal:
                     return True, "running"
             time.sleep(interval)
         return False, "timeout"
+
+    def ensure_bytenut_domain(self, sb):
+        """
+        检查当前 URL 是否包含 www.bytenut.com。
+        如果不包含，且存在其他标签页，则关闭当前标签页。
+        
+        :return: True (在目标网站), False (不在目标网站且已关闭/无法关闭)
+        """
+        # 使用 sb 获取当前 URL
+        current_url = sb.get_current_url()
+        self.log(f"当前 URL: {current_url}")
+        
+        # 判断 URL 是否包含目标域名
+        if "www.bytenut.com" not in current_url:
+            self.log("⚠️ 当前 URL 不包含 www.bytenut.com")
+            
+            # 获取所有窗口句柄
+            handles = sb.driver.window_handles
+            
+            # 关键判断：如果标签页数量大于 1，才能安全关闭当前标签
+            if len(handles) > 1:
+                self.log("🔄 发现其他标签页，正在关闭当前标签页并切换...")
+                
+                # 1. 【修正点】：使用 sb.close() 或 sb.driver.close() 关闭当前窗口
+                sb.driver.close() 
+                
+                # 2. 关闭后重新获取剩余的句柄
+                remaining_handles = sb.driver.window_handles
+                
+                # 3. 切换回剩下的标签页（通常是最后一个主窗口）
+                if remaining_handles:
+                    sb.switch_to_window(remaining_handles[-1])
+                    
+                return False
+            else:
+                self.log("❌ 当前只有一个标签页，强制关闭会导致浏览器退出，跳过关闭操作。")
+                return False
+        else:
+            self.log("✅ 确认当前在 www.bytenut.com 域名下")
+            return True
     # ---------- 移除遮挡广告（含 Cookie 弹窗处理） ----------
     def remove_overlay_ads(self, sb):
         try:
@@ -543,9 +587,11 @@ class BytenutRenewal:
                 sb.wait_for_element_present(RENEW_MENU, timeout=15)
                 sb.wait_for_element_visible(RENEW_MENU, timeout=10)
                 self.remove_overlay_ads(sb)
+                self.shot(sb, f"before_renew_btn.png")
                 sb.click(RENEW_MENU)
                 time.sleep(3)
                 self.log(f"✅ RENEW SERVER 已点击 (attempt {attempt})")
+                self.shot(sb, f"after_renew_btn.png")
                 return True
             except Exception as e:
                 self.log(f"⚠️ RENEW SERVER 失败 (attempt {attempt}): {e}")
@@ -560,9 +606,10 @@ class BytenutRenewal:
             return False, ""
         self.remove_overlay_ads(sb)
         self.log("⏳ 点击续期按钮...")
+        self.shot(sb, f"before_extend_btn.png")
         try:
             # js_click 会自动等待元素存在于 DOM，并直接用 JS 点击，无视是否可见
-            sb.js_click(EXTEND_BTN, timeout=10)
+            sb.js_click(EXTEND_BTN1, timeout=10)
             self.log("✅ 续期按钮点击成功")
         except Exception as e:
             self.log(f"续期按钮点击失败: {e}")
@@ -585,62 +632,101 @@ class BytenutRenewal:
                 and not sb.is_element_enabled(EXTEND_BTN)):
             return "cooldown", ""
         return False, ""
+    def open_start_stop_page(self, sb, idx=0, max_retries=2):
+        """
+        封装展开菜单、点击子菜单并等待页面加载的完整流程。
+        如果触发广告导致等待超时，会自动清理广告并从头重试。
+        
+        :param sb: SeleniumBase 实例
+        :param idx: 当前任务索引，用于失败时截图命名
+        :param max_retries: 最大尝试次数（默认2次，即失败后重试1次）
+        """
+        for attempt in range(max_retries):
+            self.log(f"🔄 尝试打开 Start/Stop 页面 (第 {attempt + 1} 次)...")
+            
+            # ================= Step 1: 展开 Management =================
+            self.log("📂 展开 Management...")
+            try:
+                sb.click(MANAGEMENT_MENU)
+                time.sleep(2)
+            except Exception:
+                try:
+                    sb.execute_script("""
+                        document.querySelectorAll('.el-sub-menu__title span')
+                        .forEach(function(el){
+                            if (el.textContent.trim() === 'Management')
+                                el.closest('.el-sub-menu__title').click();
+                        });
+                    """)
+                    time.sleep(2)
+                except Exception as e:
+                    self.log(f"Management 展开失败: {e}")
+                    return False, "management_fail"
 
+            # ================= Step 2: 点击 Start / Stop =================
+            self.log("🖥️ 点击 START/STOP...")
+            try:
+                sb.click(START_MENU_ITEM)
+                time.sleep(3)
+            except Exception:
+                try:
+                    sb.execute_script("""
+                        document.querySelectorAll('.el-menu-item span')
+                        .forEach(function(el){
+                            if (el.textContent.trim() === 'Start / Stop')
+                                el.closest('.el-menu-item').click();
+                        });
+                    """)
+                    time.sleep(3)
+                except Exception as e:
+                    self.log(f"Start / Stop 点击失败: {e}")
+                    # 如果菜单都点不到，直接进入下一次重试
+                    continue 
+
+            # ================= Step 3: 等待 Start 按钮 =================
+            try:
+                # 尝试等待按钮出现（预期第一次可能会因为弹广告而失败）
+                sb.wait_for_element_present(START_BTN, timeout=5)
+                self.log("✅ Start/Stop 页面就绪，未触发广告或已成功处理")
+                return True, "success" 
+
+            except Exception as e:
+                self.log(f"⚠️ 等待 Start 按钮超时 (第 {attempt + 1} 次)，确认触发了广告或页面未加载。")
+                
+                # 1. 清理广告（关闭非目标域名的标签页，并自动切回原标签）
+                self.ensure_bytenut_domain(sb)
+                
+                # 2. 等待浏览器状态恢复
+                sb.wait_for_ready_state_complete()
+                time.sleep(1) # 额外加1秒缓冲，确保UI完全稳定
+                
+                # 3. 判断是否还有重试机会
+                if attempt == max_retries - 1:
+                    self.log("❌ 达到最大重试次数，依然无法看到 Start 按钮。")
+                    self.shot(sb, f"reclick_start_btn_{idx}.png")
+                    return False, "no_start_btn"
+                
+                # 如果没有 return，循环会自动进入下一轮，也就是重新从 Step 1 (展开 Management) 开始
+                self.log("🔁 广告已清理，准备重新从展开 Management 开始重试...")
+
+        return False, "unexpected_error"
     # ========== UI 开机 ==========
     def ui_start_server(self, sb, server_id, idx):
         self.log("🖥️ 导航到 Console 页面...")
         self.navigate_to_panel(sb, server_id)
 
-        # Step 1: 展开 Management
-        self.log("📂 展开 Management...")
-        try:
-            sb.click(MANAGEMENT_MENU)
-            time.sleep(2)
-        except Exception:
-            try:
-                sb.execute_script("""
-                    document.querySelectorAll('.el-sub-menu__title span')
-                    .forEach(function(el){
-                        if (el.textContent.trim() === 'Management')
-                            el.closest('.el-sub-menu__title').click();
-                    });
-                """)
-                time.sleep(2)
-            except Exception as e:
-                self.log(f"Management 展开失败: {e}")
-                return False, "management_fail"
+        success, msg = self.open_start_stop_page(sb, idx=idx)
 
-        # Step 2: 点击 
-        self.log("🖥️ 点击 START/STOP...")
-        try:
-            sb.click(START_MENU_ITEM)
-            time.sleep(3)
-        except Exception:
-            try:
-                sb.execute_script("""
-                    document.querySelectorAll('.el-menu-item span')
-                    .forEach(function(el){
-                        if (el.textContent.trim() === 'Start / Stop')
-                            el.closest('.el-menu-item').click();
-                    });
-                """)
-                time.sleep(3)
-            except Exception as e:
-                self.log(f"Start / Stop 点击失败: {e}")
-
-        # Step 3: 等待 Start 按钮
-        try:
-            sb.wait_for_element_present(START_BTN, timeout=15)
-            self.log("✅ Start / Stop  页面就绪")
-        except Exception as e:
-            self.log(f"⚠️ 等待 Start 超时: {e}")
-            self.shot(sb, f"no_start_btn_{idx}.png")
-            return False, "no_start_btn"
-
+        if not success:
+            self.log(f"打开 Start/Stop 页面最终失败，原因: {msg}")
+            return false
+            
         # Step 4: 点击 Start
         self.log("▶️ 点击 Start...")
         self.remove_overlay_ads(sb)
+        
         try:
+            self.shot(sb, f"before_click_start_server.png")
             btn = sb.find_element(START_BTN)
             if btn.get_attribute("disabled"):
                 self.log("⚠️ Start disabled")
@@ -874,11 +960,13 @@ class BytenutRenewal:
                                              screenshot=self.shot(
                                                  sb, f"panel_fail_{idx}.png"))
                                 continue
-                            if not self.click_renew_menu(sb, server_id, idx):
-                                self.send_tg("❌", "续期菜单失败", user,
-                                             server_id, "offline", expiry_str,
-                                             screenshot=self.shot(
-                                                 sb, f"renew_fail_{idx}.png"))
+                            sb.wait_for_element_present(EXTEND_BTN, timeout=10)
+                            if not sb.is_element_present(EXTEND_BTN):
+                                if not self.click_renew_menu(sb, server_id, idx):
+                                    self.send_tg("❌", "续期菜单失败", user,
+                                                server_id, "offline", expiry_str,
+                                                screenshot=self.shot(
+                                                    sb, f"renew_fail_{idx}.png"))
                                 continue
                             result, new_time = self.try_extend_and_verify(
                                 sb, server_id, expired_time)
