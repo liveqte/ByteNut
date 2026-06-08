@@ -561,9 +561,8 @@ class BytenutRenewal:
         self.remove_overlay_ads(sb)
         self.log("⏳ 点击续期按钮...")
         try:
-            if sb.is_element_visible(EXTEND_BTN):
-                sb.execute_script("arguments[0].click();",
-                                  sb.find_element(EXTEND_BTN))
+            # if sb.is_element_visible(EXTEND_BTN):
+            sb.execute_script("arguments[0].click();",sb.find_element(EXTEND_BTN))
             else:
                 self.log("⚠️ 续期按钮不可见")
                 return False, ""
